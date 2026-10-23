@@ -53,6 +53,7 @@ const speaker = new Speaker();
 let tracker = new ShotTracker({ hand: profile.hand });
 let smooth = null;          // smoothed landmarks in pixels
 let lastState = "idle", shots = 0, lastShot = null, snapshot = null, cueUntil = 0;
+let noHipsSince = null, toldStepBack = false;
 const counts = new Map();   // cue → shots it appeared in
 let shotIssues = new Set(); // cues heard while anchored in the current shot
 let landmarker = null, running = false, lastVideoTime = -1, wakeLock = null;
@@ -247,7 +248,17 @@ function update(r, now) {
   const noFeet = r.geom && r.geom.plumbFrom !== "feet";
   set("mBalance", noFeet ? "không thấy chân" : bal === undefined ? "–" : Math.abs(bal) <= LIMITS.balanceMax ? "giữa" : bal > 0 ? "chân trước" : "chân sau",
       noFeet || (bal !== undefined && Math.abs(bal) > LIMITS.balanceMax));
-  $("feetHint").hidden = !noFeet;
+  // Say plainly what can't be judged rather than staying silent about it.
+  const from = r.geom?.plumbFrom;
+  const hint = !r.geom ? "" : from === "feet" ? "" : from === "hips"
+    ? "Lùi xa để thấy cả hai chân: chưa đo được trọng tâm"
+    : "Lùi xa: chưa thấy hông và chân, chưa đo được người nghiêng và trọng tâm";
+  $("feetHint").textContent = hint; $("feetHint").hidden = !hint;
+  if (hint && !from) {
+    noHipsSince ??= now;
+    // Once per session, while not aiming, after 2 s without hips in view.
+    if (!toldStepBack && tracker.state !== "anchored" && now - noHipsSince > 2000) { toldStepBack = true; say("Lùi ra xa để camera thấy cả người"); }
+  } else noHipsSince = null;
 
   const st = r.phase === "notVisible" ? "notVisible" : tracker.state;
   const holdS = tracker.anchorT !== null && st === "anchored" ? ((now - tracker.anchorT) / 1000).toFixed(1) : null;
