@@ -4,14 +4,14 @@ import { LM } from "../posture.js";
 import { ShotTracker, SHOT } from "../shot.js";
 
 // A right-handed archer seen from the front: target to the right of the image (dir = +1), shoulder width 120 px.
-function pose({ bowShoulderY = 400, anchorX = 492, anchorY = 338, drawElbowY = 405, bowWristY = 400, bowWristX = 800 } = {}) {
+function pose({ bowShoulderY = 400, anchorX = 492, anchorY = 338, drawElbowY = 405, bowWristY = 400, bowWristX = 800, indexDx = 0, indexDy = 0 } = {}) {
   const p = [];
   const set = (i, x, y) => { p[i] = { x, y, v: 1 }; };
   set(LM.nose, 500, 320); set(LM.mouthLeft, 510, 335); set(LM.mouthRight, 490, 335);
-  set(LM.rightEar, 470, 318);                                         // draw-side ear
+  set(LM.rightEar, 450, 318);                                         // draw-side ear, behind the mouth corner
   set(LM.leftShoulder, 560, bowShoulderY); set(LM.rightShoulder, 440, 400);
   set(LM.leftElbow, (560 + bowWristX) / 2, (bowShoulderY + bowWristY) / 2); set(LM.leftWrist, bowWristX, bowWristY);
-  set(LM.rightElbow, 330, drawElbowY); set(LM.rightIndex, anchorX, anchorY); set(LM.rightWrist, anchorX - 22, anchorY + 22);
+  set(LM.rightElbow, 330, drawElbowY); set(LM.rightIndex, anchorX + indexDx, anchorY + indexDy); set(LM.rightWrist, anchorX - 22, anchorY + 22);
   set(LM.leftHip, 520, 640); set(LM.rightHip, 480, 640);
   set(LM.leftAnkle, 580, 900); set(LM.rightAnkle, 420, 900);
   return p;
@@ -74,6 +74,7 @@ test("creeping forward during the hold is caught", () => {
   const shots = play(cleanShot({ holdTo: { ...ANCHOR, anchorX: ANCHOR.anchorX + 14 } }));
   assert.ok(shots[0].creep > SHOT.creepMax);
   assert.ok(shots[0].issues.some((i) => i.id === "creep"));
+  assert.ok(!shots[0].issues.some((i) => i.id === "forwardRelease"), shots[0].issues.map((i) => i.id).join());
 });
 
 test("a short hold is caught", () => {
@@ -86,7 +87,7 @@ test("a dead release (hand barely moves back) is caught", () => {
   assert.equal(shots.length, 1);
   assert.equal(shots[0].issues[0].id, "deadRelease");
   assert.equal(shots[0].issues[0].say, "Nhả dây cho tay phải trượt ra sau tai");
-  assert.ok(shots[0].behindEar < 0);
+  assert.ok(shots[0].behindEar < SHOT.behindEarMin);
 });
 
 test("the bow arm dropping right after the release is caught", () => {
@@ -127,6 +128,14 @@ test("a one-frame jump of the finger landmark at the face is not a release", () 
   let n = 0;
   const glitch = (t) => (t > 2400 && t < 2440 && n++ < 1 ? { anchorX: ANCHOR.anchorX - 30, anchorY: ANCHOR.anchorY + 10 } : {});
   const shots = play(cleanShot(), glitch);
+  assert.equal(shots.length, 1);
+  assert.ok(Math.abs(shots[0].holdMs - 2500) < 150, `hold ${shots[0].holdMs}`);
+});
+
+test("the finger landmark scribbling around the face for a few frames is not a release", () => {
+  // MediaPipe loses the index finger against the face: it jumps 0.3 shoulder widths for 3 frames, the wrist stays put.
+  const scribble = (t) => (t > 2300 && t < 2400 ? { indexDx: -36, indexDy: 30 } : {});
+  const shots = play(cleanShot(), scribble);
   assert.equal(shots.length, 1);
   assert.ok(Math.abs(shots[0].holdMs - 2500) < 150, `hold ${shots[0].holdMs}`);
 });

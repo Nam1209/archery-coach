@@ -80,6 +80,7 @@ export function analyze(points, { hand = "right" } = {}) {
     drawElbowDrop: (drawElbow.y - drawShoulder.y) / sw,
     anchor: dist(anchorPoint, corner) / sw,
     anchorDrop: (anchorPoint.y - corner.y) / sw,
+    wristAnchor: dist(drawWrist, corner) / sw,
   };
   const hips = [points[LM.leftHip], points[LM.rightHip]];
   if (hips.every((h) => h && (h.v ?? 1) >= 0.5)) {
@@ -88,8 +89,9 @@ export function analyze(points, { hand = "right" } = {}) {
   }
   const ankles = [points[LM.leftAnkle], points[LM.rightAnkle]];
   const dir = Math.sign(bowWrist.x - bowShoulder.x) || 1;   // +1 when the target is to the right in the image
-  let plumbX;
+  let plumbX, plumbFrom;
   if (ankles.every((a) => a && (a.v ?? 1) >= 0.5)) {
+    plumbFrom = "feet";
     metrics.stance = Math.abs(ankles[0].x - ankles[1].x) / sw;
     plumbX = (ankles[0].x + ankles[1].x) / 2;
     // Where the weight sits: the middle of hips and shoulders against a vertical line between the feet.
@@ -98,6 +100,9 @@ export function analyze(points, { hand = "right" } = {}) {
       const centreX = (hips[0].x + hips[1].x + points[LM.leftShoulder].x + points[LM.rightShoulder].x) / 4;
       metrics.balance = ((centreX - plumbX) * dir) / sw;
     }
+  } else if (hips.every((h) => h && (h.v ?? 1) >= 0.5)) {
+    // Feet out of frame: a vertical through the middle of the hips still shows the shoulders leaning off it.
+    plumbX = (hips[0].x + hips[1].x) / 2; plumbFrom = "hips";
   }
 
   // Bow arm raised toward the target: straight-ish, away from the body and near horizontal (a hanging arm is straight too).
@@ -106,8 +111,8 @@ export function analyze(points, { hand = "right" } = {}) {
   const phase = armOut && atFace ? "fullDraw" : "other";
   // Positions the shot tracker follows from frame to frame. `dir` is +1 when the target is to the right in the image.
   const geom = {
-    sw, armOut, dir, plumbX,
-    anchor: { x: anchorPoint.x, y: anchorPoint.y }, bowWrist: { x: bowWrist.x, y: bowWrist.y }, bowShoulder: { x: bowShoulder.x, y: bowShoulder.y },
+    sw, armOut, dir, plumbX, plumbFrom,
+    anchor: { x: anchorPoint.x, y: anchorPoint.y }, drawWrist: { x: drawWrist.x, y: drawWrist.y }, bowWrist: { x: bowWrist.x, y: bowWrist.y }, bowShoulder: { x: bowShoulder.x, y: bowShoulder.y },
     // The draw-side ear: after a good release the draw hand ends up behind it.
     ear: visible(points[s.draw === "right" ? LM.rightEar : LM.leftEar]) ? { ...points[s.draw === "right" ? LM.rightEar : LM.leftEar] } : null,
   };

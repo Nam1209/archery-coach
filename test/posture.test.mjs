@@ -116,3 +116,13 @@ test("weight shifted onto the back foot has its own cue", () => {
   for (const i of [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip]) p[i] = { ...p[i], x: p[i].x - 25 };
   assert.ok(analyze(p).issues.some((i) => i.id === "balanceBack" && i.say === "Đừng ngả người về chân sau"));
 });
+
+test("without the feet in frame the plumb line goes through the hips and the weight is not judged", () => {
+  const p = goodFullDraw();
+  p[LM.leftAnkle] = { ...p[LM.leftAnkle], v: 0.1 }; p[LM.rightAnkle] = { ...p[LM.rightAnkle], v: 0.1 };
+  const r = analyze(p);
+  assert.equal(r.geom.plumbX, 500);
+  assert.equal(r.geom.plumbFrom, "hips");
+  assert.equal(r.metrics.balance, undefined);
+  assert.equal(analyze(goodFullDraw()).geom.plumbFrom, "feet");
+});

@@ -244,7 +244,10 @@ function update(r, now) {
   const anchorText = m.anchor === undefined ? "–" : m.anchorDrop > LIMITS.anchorLowMax ? "thấp" : m.anchor > LIMITS.anchorMax ? "xa" : "khoé miệng";
   set("mAnchor", anchorText, anchorText === "thấp" || anchorText === "xa");
   const bal = m.balance;
-  set("mBalance", bal === undefined ? "–" : Math.abs(bal) <= LIMITS.balanceMax ? "giữa" : bal > 0 ? "chân trước" : "chân sau", bal !== undefined && Math.abs(bal) > LIMITS.balanceMax);
+  const noFeet = r.geom && r.geom.plumbFrom !== "feet";
+  set("mBalance", noFeet ? "không thấy chân" : bal === undefined ? "–" : Math.abs(bal) <= LIMITS.balanceMax ? "giữa" : bal > 0 ? "chân trước" : "chân sau",
+      noFeet || (bal !== undefined && Math.abs(bal) > LIMITS.balanceMax));
+  $("feetHint").hidden = !noFeet;
 
   const st = r.phase === "notVisible" ? "notVisible" : tracker.state;
   const holdS = tracker.anchorT !== null && st === "anchored" ? ((now - tracker.anchorT) / 1000).toFixed(1) : null;
