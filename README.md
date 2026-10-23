@@ -5,6 +5,9 @@ wrists, hips and ankles with [MediaPipe Pose](https://ai.google.dev/edge/mediapi
 on the device, draws the target form over you, and speaks one short Vietnamese cue at a time while you are at full draw.
 Video never leaves the phone.
 
+Voice cues use the phone's Vietnamese voice. On iPhone the more natural "Enhanced" Vietnamese voice can be downloaded in
+Settings → Accessibility → Spoken Content → Voices → Vietnamese; the page picks it when present.
+
 **Open it:** https://nam1209.github.io/archery-coach/ (Safari on iPhone; allow the camera)
 
 > **Prototype.** The thresholds are starting values to tune after real sessions.
@@ -17,7 +20,7 @@ Video never leaves the phone.
 | Bow shoulder not raised (shoulders within 6° of level) | "Hạ vai trái xuống" |
 | Bow arm level with the shoulder (within 12°) | "Nâng/Hạ tay cầm cung … ngang vai" |
 | Draw elbow at shoulder height | "Nâng khuỷu tay phải lên ngang vai" |
-| Draw hand at the face (anchor) | "Kéo dây về sát cằm" |
+| Barebow anchor: draw index finger at the mouth corner (not under the chin, as in Olympic recurve) | "Kéo dây về khoé miệng" / "Đưa tay neo lên khoé miệng" |
 | Upright body (within 8° of vertical) | "Đứng thẳng người" |
 | Feet about shoulder width apart | "Mở/Khép hai chân …" |
 

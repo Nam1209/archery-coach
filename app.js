@@ -27,14 +27,17 @@ showEquipment();
 let viVoice = null;
 function pickVoice() {
   const voices = speechSynthesis.getVoices();
-  viVoice = voices.find((v) => v.lang?.toLowerCase().startsWith("vi")) ?? null;
+  // Prefer the higher-quality Vietnamese voices iOS can download (Enhanced / Premium) over the default compact one.
+  const vi = voices.filter((v) => v.lang?.toLowerCase().startsWith("vi"));
+  const rank = (v) => /premium/i.test(v.name + v.voiceURI) ? 2 : /enhanced|nâng cao/i.test(v.name + v.voiceURI) ? 1 : 0;
+  viVoice = vi.sort((a, b) => rank(b) - rank(a))[0] ?? null;
 }
 if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 function say(text) {
   if (!profile.voice || !("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "vi-VN"; if (viVoice) u.voice = viVoice; u.rate = 1.05;
+  u.lang = "vi-VN"; if (viVoice) u.voice = viVoice; u.rate = 1;
   speechSynthesis.speak(u);
 }
 $("voiceBtn").onclick = () => {
@@ -142,7 +145,7 @@ const BONES = [
 const BOW_ARM = ["bowShoulder:Elbow", "bowElbow:Wrist"];
 const BLAME = {
   bowArmBent: BOW_ARM, bowArmHigh: BOW_ARM, bowArmLow: BOW_ARM, shoulderUp: ["shoulders"], shoulderTilt: ["shoulders"],
-  drawElbowLow: ["drawShoulder:Elbow", "drawElbow:Wrist"], anchorFar: ["drawElbow:Wrist"], torsoLean: ["bowShoulder:Hip", "drawShoulder:Hip"],
+  drawElbowLow: ["drawShoulder:Elbow", "drawElbow:Wrist"], anchorFar: ["drawElbow:Wrist"], anchorLow: ["drawElbow:Wrist"], torsoLean: ["bowShoulder:Hip", "drawShoulder:Hip"],
 };
 
 /** A bone named by role instead of side, e.g. "bowElbow:Wrist", so blame works for either hand. */
@@ -204,7 +207,8 @@ function update(r) {
   set("mBow", m.bowElbow ? `${Math.round(m.bowElbow)}°` : "–", m.bowElbow && m.bowElbow < LIMITS.bowElbowMin);
   set("mShoulder", m.shoulderTilt !== undefined ? `${m.shoulderTilt.toFixed(0)}°` : "–", m.shoulderTilt > LIMITS.shoulderTiltMax);
   set("mElbow", m.drawElbowDrop !== undefined ? (m.drawElbowDrop > LIMITS.drawElbowDropMax ? "thấp" : "ổn") : "–", m.drawElbowDrop > LIMITS.drawElbowDropMax);
-  set("mAnchor", m.anchor !== undefined ? (m.anchor > LIMITS.anchorMax ? "xa" : "sát") : "–", m.anchor > LIMITS.anchorMax);
+  const anchorText = m.anchor === undefined ? "–" : m.anchorDrop > LIMITS.anchorLowMax ? "thấp" : m.anchor > LIMITS.anchorMax ? "xa" : "khoé miệng";
+  set("mAnchor", anchorText, anchorText === "thấp" || anchorText === "xa");
 
   const phaseEl = $("phase");
   phaseEl.className = "pill" + (r.phase === "fullDraw" ? (r.issues.length ? " draw" : " ok") : "");

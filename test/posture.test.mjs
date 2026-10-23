@@ -9,7 +9,8 @@ function goodFullDraw() {
   set(LM.nose, 500, 320); set(LM.mouthLeft, 510, 335); set(LM.mouthRight, 490, 335);
   set(LM.leftShoulder, 560, 400); set(LM.rightShoulder, 440, 400);   // shoulder width 120
   set(LM.leftElbow, 680, 400); set(LM.leftWrist, 800, 400);           // bow arm straight and level
-  set(LM.rightElbow, 330, 405); set(LM.rightWrist, 505, 345);         // draw elbow at shoulder height, hand at the chin
+  set(LM.rightElbow, 330, 405); set(LM.rightWrist, 470, 360);         // draw elbow at shoulder height, hand at the face
+  set(LM.rightIndex, 492, 338);                                       // barebow anchor: index finger at the mouth corner
   set(LM.leftHip, 520, 640); set(LM.rightHip, 480, 640);
   set(LM.leftAnkle, 580, 900); set(LM.rightAnkle, 420, 900);          // feet a bit wider than the shoulders
   return p;
@@ -41,10 +42,23 @@ test("a raised bow shoulder says which shoulder to lower", () => {
 test("a dropped draw elbow and a hand away from the face are both found", () => {
   const p = goodFullDraw();
   p[LM.rightElbow] = { x: 340, y: 460, v: 1 };
-  p[LM.rightWrist] = { x: 440, y: 360, v: 1 };
-  const ids = analyze(p).issues.map((i) => i.id);
+  p[LM.rightWrist] = { x: 420, y: 370, v: 1 };
+  p[LM.rightIndex] = { x: 445, y: 355, v: 1 };
+  const r = analyze(p);
+  const ids = r.issues.map((i) => i.id);
   assert.ok(ids.includes("drawElbowLow"));
   assert.ok(ids.includes("anchorFar"));
+  assert.equal(r.issues.find((i) => i.id === "anchorFar").say, "Kéo dây về khoé miệng");
+});
+
+test("a recurve-style anchor under the chin is too low for barebow", () => {
+  const p = goodFullDraw();
+  p[LM.rightIndex] = { x: 495, y: 385, v: 1 };   // under the chin, 50 px (0.42 shoulder widths) below the mouth corner
+  p[LM.rightWrist] = { x: 470, y: 405, v: 1 };
+  const r = analyze(p);
+  assert.equal(r.phase, "fullDraw");
+  assert.equal(r.issues[0].id, "anchorLow");
+  assert.equal(r.issues[0].say, "Đưa tay neo lên khoé miệng");
 });
 
 test("a left-handed archer holds the bow in the right hand", () => {

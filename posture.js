@@ -5,7 +5,7 @@
 export const LM = {
   nose: 0, mouthLeft: 9, mouthRight: 10,
   leftShoulder: 11, rightShoulder: 12, leftElbow: 13, rightElbow: 14, leftWrist: 15, rightWrist: 16,
-  leftHip: 23, rightHip: 24, leftAnkle: 27, rightAnkle: 28,
+  leftIndex: 19, rightIndex: 20, leftHip: 23, rightHip: 24, leftAnkle: 27, rightAnkle: 28,
 };
 
 // Tolerances. Angles in degrees; distances as a share of shoulder width so they work at any camera distance.
@@ -14,7 +14,9 @@ export const LIMITS = {
   shoulderTiltMax: 6,      // line between the shoulders vs horizontal
   bowArmTiltMax: 12,       // shoulder → bow hand vs horizontal
   drawElbowDropMax: 0.15,  // draw elbow below the draw shoulder
-  anchorMax: 0.45,         // draw hand to the mouth
+  // Barebow anchors high: the draw hand's index finger at the corner of the mouth (not under the chin as in Olympic recurve).
+  anchorMax: 0.3,          // index finger to the mouth corner
+  anchorLowMax: 0.2,       // index finger below the mouth corner
   torsoLeanMax: 8,         // hips → shoulders vs vertical
   stanceMin: 0.8, stanceMax: 1.7, // ankle gap
 };
@@ -62,7 +64,11 @@ export function analyze(points, { hand = "right" } = {}) {
   const bowShoulder = part(points, s.bow, "shoulder"), bowElbow = part(points, s.bow, "elbow"), bowWrist = part(points, s.bow, "wrist");
   const drawShoulder = part(points, s.draw, "shoulder"), drawElbow = part(points, s.draw, "elbow"), drawWrist = part(points, s.draw, "wrist");
   const sw = dist(points[LM.leftShoulder], points[LM.rightShoulder]) || 1;
-  const mouth = mid(points[LM.mouthLeft] ?? points[LM.nose], points[LM.mouthRight] ?? points[LM.nose]);
+  const visible = (p) => p && (p.v ?? 1) >= 0.5;
+  const drawIndex = part(points, s.draw, "index");
+  const anchorPoint = visible(drawIndex) ? drawIndex : drawWrist;
+  const mouthCorner = points[s.draw === "right" ? LM.mouthRight : LM.mouthLeft];
+  const corner = visible(mouthCorner) ? mouthCorner : points[LM.nose] ?? anchorPoint;
 
   const metrics = {
     bowElbow: jointAngle(bowShoulder, bowElbow, bowWrist),
@@ -71,7 +77,8 @@ export function analyze(points, { hand = "right" } = {}) {
     bowArmTilt: tiltFromHorizontal(bowShoulder, bowWrist),
     bowHandHigh: bowWrist.y < bowShoulder.y,
     drawElbowDrop: (drawElbow.y - drawShoulder.y) / sw,
-    anchor: dist(drawWrist, mouth) / sw,
+    anchor: dist(anchorPoint, corner) / sw,
+    anchorDrop: (anchorPoint.y - corner.y) / sw,
   };
   const hips = [points[LM.leftHip], points[LM.rightHip]];
   if (hips.every((h) => h && (h.v ?? 1) >= 0.5)) {
@@ -95,7 +102,8 @@ export function analyze(points, { hand = "right" } = {}) {
   add(metrics.bowHandHigh ? "bowArmHigh" : "bowArmLow", (metrics.bowArmTilt - LIMITS.bowArmTiltMax) / 10,
     metrics.bowHandHigh ? "Hạ tay cầm cung xuống ngang vai" : "Nâng tay cầm cung lên ngang vai");
   add("drawElbowLow", (metrics.drawElbowDrop - LIMITS.drawElbowDropMax) / 0.15, `Nâng khuỷu tay ${s.drawWord} lên ngang vai`);
-  add("anchorFar", (metrics.anchor - LIMITS.anchorMax) / 0.2, "Kéo dây về sát cằm");
+  if (metrics.anchorDrop > LIMITS.anchorLowMax) add("anchorLow", (metrics.anchorDrop - LIMITS.anchorLowMax) / 0.15, "Đưa tay neo lên khoé miệng");
+  else add("anchorFar", (metrics.anchor - LIMITS.anchorMax) / 0.2, "Kéo dây về khoé miệng");
   if (metrics.torsoLean !== undefined) add("torsoLean", (metrics.torsoLean - LIMITS.torsoLeanMax) / 6, "Đứng thẳng người");
   if (metrics.stance !== undefined) {
     add("stanceNarrow", (LIMITS.stanceMin - metrics.stance) / 0.3, "Mở hai chân rộng bằng vai");
