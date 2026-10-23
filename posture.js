@@ -3,7 +3,7 @@
 
 // MediaPipe Pose landmark indices (left/right are the archer's own sides).
 export const LM = {
-  nose: 0, mouthLeft: 9, mouthRight: 10,
+  nose: 0, leftEar: 7, rightEar: 8, mouthLeft: 9, mouthRight: 10,
   leftShoulder: 11, rightShoulder: 12, leftElbow: 13, rightElbow: 14, leftWrist: 15, rightWrist: 16,
   leftIndex: 19, rightIndex: 20, leftHip: 23, rightHip: 24, leftAnkle: 27, rightAnkle: 28,
 };
@@ -108,6 +108,8 @@ export function analyze(points, { hand = "right" } = {}) {
   const geom = {
     sw, armOut, dir, plumbX,
     anchor: { x: anchorPoint.x, y: anchorPoint.y }, bowWrist: { x: bowWrist.x, y: bowWrist.y }, bowShoulder: { x: bowShoulder.x, y: bowShoulder.y },
+    // The draw-side ear: after a good release the draw hand ends up behind it.
+    ear: visible(points[s.draw === "right" ? LM.rightEar : LM.leftEar]) ? { ...points[s.draw === "right" ? LM.rightEar : LM.leftEar] } : null,
   };
   if (phase !== "fullDraw") return { phase, metrics, issues: [], geom };
 

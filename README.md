@@ -37,12 +37,14 @@ most ("Phát vừa rồi: …"). Nothing is spoken during the draw, the release 
 | Hold | Under 1.5 s at anchor | "Giữ dây lâu hơn trước khi nhả" |
 | Hold | Bow hand or anchor shaking | "Tay đang run khi giữ dây" |
 | Hold | Anchor hand creeping toward the target | "Giữ tay neo, đừng để dây trôi về trước" |
-| Release | Draw hand barely moves back (dead release) | "Nhả dây cho tay trượt về sau" |
+| Release | Draw hand not reaching behind the draw-side ear (dead release) | "Nhả dây cho tay phải trượt ra sau tai" |
 | Release | Draw hand thrown toward the target | "Tay kéo bật về trước khi nhả" |
 | Follow-through | Bow hand dropping within 0.5 s | "Giữ tay cung sau khi nhả" |
 | Follow-through | Bow arm down before 1 s | "Giữ dáng thêm một giây sau khi nhả" |
 
-The release is found from the anchor hand jumping away from the face; the camera (30 frames a second) cannot see the
+A shot starts counting once the index finger has stopped at the mouth corner (a pause on the way in is not the
+anchor). The release is the anchor hand jumping away from there and still being away on the next frame (a one-frame
+jump of the finger landmark at the face is ignored); the camera (30 frames a second) cannot see the
 string leave the fingers, only what the hands do around it. A front camera also sees little of a hand moving toward or
 away from it, so plucking out from the face is not checked yet.
 

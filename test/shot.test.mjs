@@ -8,6 +8,7 @@ function pose({ bowShoulderY = 400, anchorX = 492, anchorY = 338, drawElbowY = 4
   const p = [];
   const set = (i, x, y) => { p[i] = { x, y, v: 1 }; };
   set(LM.nose, 500, 320); set(LM.mouthLeft, 510, 335); set(LM.mouthRight, 490, 335);
+  set(LM.rightEar, 470, 318);                                         // draw-side ear
   set(LM.leftShoulder, 560, bowShoulderY); set(LM.rightShoulder, 440, 400);
   set(LM.leftElbow, (560 + bowWristX) / 2, (bowShoulderY + bowWristY) / 2); set(LM.leftWrist, bowWristX, bowWristY);
   set(LM.rightElbow, 330, drawElbowY); set(LM.rightIndex, anchorX, anchorY); set(LM.rightWrist, anchorX - 22, anchorY + 22);
@@ -59,6 +60,7 @@ test("a clean shot: held long enough, hand slides back, bow arm stays up", () =>
   const s = shots[0];
   assert.ok(Math.abs(s.holdMs - 2500) < 150, `hold ${s.holdMs}`);
   assert.ok(s.handBack > 0.4, `hand back ${s.handBack}`);
+  assert.ok(s.behindEar > 0.3, `behind ear ${s.behindEar}`);
   assert.deepEqual(s.issues, []);
 });
 
@@ -83,6 +85,8 @@ test("a dead release (hand barely moves back) is caught", () => {
   const shots = play(cleanShot({ release: back(18), after: back(20) }));
   assert.equal(shots.length, 1);
   assert.equal(shots[0].issues[0].id, "deadRelease");
+  assert.equal(shots[0].issues[0].say, "Nhả dây cho tay phải trượt ra sau tai");
+  assert.ok(shots[0].behindEar < 0);
 });
 
 test("the bow arm dropping right after the release is caught", () => {
@@ -106,4 +110,23 @@ test("the shot keeps its frames around the release for the replay", () => {
   const s = play(cleanShot())[0];
   assert.ok(s.frames.length > 40);
   assert.ok(s.frames.some((f) => f.t < s.releaseT) && s.frames.some((f) => f.t > s.releaseT));
+});
+
+test("pausing on the way in and then finishing the draw is not a release", () => {
+  // The hand slows to a stop well short of the mouth (about 0.6 shoulder widths away), then finishes the draw.
+  const midway = { anchorX: 560, anchorY: 360 };
+  const shots = play([
+    [300, SETUP], [600, SETUP, midway], [400, midway], [400, midway, ANCHOR],
+    [2000, ANCHOR], [66, ANCHOR, back(60)], [1500, back(70)],
+  ]);
+  assert.equal(shots.length, 1);
+  assert.ok(Math.abs(shots[0].holdMs - 2000) < 200, `hold ${shots[0].holdMs}`);
+});
+
+test("a one-frame jump of the finger landmark at the face is not a release", () => {
+  let n = 0;
+  const glitch = (t) => (t > 2400 && t < 2440 && n++ < 1 ? { anchorX: ANCHOR.anchorX - 30, anchorY: ANCHOR.anchorY + 10 } : {});
+  const shots = play(cleanShot(), glitch);
+  assert.equal(shots.length, 1);
+  assert.ok(Math.abs(shots[0].holdMs - 2500) < 150, `hold ${shots[0].holdMs}`);
 });

@@ -1,6 +1,6 @@
 // Follows one shot from frame to frame: drawing, holding at anchor, the release and the follow-through.
 // Pure: feed it (time in ms, landmark points in pixels); it returns a "shot" event once the follow-through is over.
-import { analyze } from "./posture.js";
+import { analyze, LIMITS, sides } from "./posture.js";
 
 // Distances are in shoulder widths (sw), times in ms. Starting values, to tune on real shots.
 export const SHOT = {
@@ -9,10 +9,12 @@ export const SHOT = {
   creepMax: 0.08,         // anchor hand drifting toward the target before the release
   shoulderRiseMax: 0.08,  // bow shoulder rising between the start of the draw and the anchor
   drawElbowDropMax: 0.35, // draw elbow far below the shoulder at some point of the draw
-  settleMax: 0.05,        // the hand counts as anchored once it moves less than this within `releaseWindowMs`
+  anchorMax: LIMITS.anchorMax * 1.5, // index finger this close to the mouth corner counts as at anchor
+  settleMax: 0.05,        // ...once it moves less than this for `settleMs`
+  settleMs: 250,
   releaseJump: 0.15,      // the anchor hand moving at least this far within `releaseWindowMs` = the release
   releaseWindowMs: 100,
-  deadBackMin: 0.2,       // after the release the draw hand should slide back at least this far
+  deadBackMin: 0.2,       // without an ear in view: the draw hand should slide back at least this far
   forwardMax: 0.1,        // ...and not fly toward the target
   bowDropMax: 0.25,       // bow hand dropping within 0.5 s of the release
   followHoldMs: 1000,     // keep the bow arm up this long after the release
@@ -20,17 +22,17 @@ export const SHOT = {
   keepBeforeMs: 1500,     // frames kept before the release for the replay
 };
 
-const say = {
+const say = (hand) => ({
   holdShort: "Giữ dây lâu hơn trước khi nhả",
   tremor: "Tay đang run khi giữ dây",
   creep: "Giữ tay neo, đừng để dây trôi về trước",
   shoulderRiseDraw: "Vai cung nhô lên khi kéo",
   drawElbowLowDraw: "Kéo khuỷu tay ngang vai từ đầu",
-  deadRelease: "Nhả dây cho tay trượt về sau",
+  deadRelease: `Nhả dây cho tay ${sides(hand).drawWord} trượt ra sau tai`,
   forwardRelease: "Tay kéo bật về trước khi nhả",
   bowDrop: "Giữ tay cung sau khi nhả",
   followShort: "Giữ dáng thêm một giây sau khi nhả",
-};
+});
 
 export class ShotTracker {
   constructor({ hand = "right" } = {}) {
@@ -43,7 +45,7 @@ export class ShotTracker {
     this.drawStart = null;      // bow shoulder y and time when the draw began
     this.shoulderRise = 0; this.elbowDrop = 0;
     this.hold = [];             // {t, anchor, bowWrist} while anchored
-    this.anchorT = null; this.release = null; this.after = [];
+    this.anchorT = null; this.release = null; this.after = []; this.candidate = null;
     this.lostSince = null;
   }
 
@@ -65,25 +67,38 @@ export class ShotTracker {
         this.lostSince = null;
         this.shoulderRise = Math.max(this.shoulderRise, (this.drawStart.y - g.bowShoulder.y) / g.sw);
         this.elbowDrop = Math.max(this.elbowDrop, r.metrics.drawElbowDrop ?? 0);
-        // Anchored once the hand is at the face and has stopped moving (it moves fast on the way in).
+        // Anchored once the index finger is at the mouth corner and has stopped there (a draw can pause on the way in).
         this.path.push({ t, anchor: g.anchor });
-        this.path = this.path.filter((h) => t - h.t <= SHOT.releaseWindowMs);
-        const settled = this.path.length >= 3 && this.path.every((h) => Math.hypot(h.anchor.x - g.anchor.x, h.anchor.y - g.anchor.y) / g.sw < SHOT.settleMax);
-        if (r.phase === "fullDraw" && settled) this.anchor(t, g);
+        this.path = this.path.filter((h) => t - h.t <= SHOT.settleMs);
+        const settled = t - this.path[0].t >= SHOT.settleMs - 40
+          && this.path.every((h) => Math.hypot(h.anchor.x - g.anchor.x, h.anchor.y - g.anchor.y) / g.sw < SHOT.settleMax);
+        // The hold is timed from when the hand arrived, not from when it had been still long enough to tell.
+        if (r.phase === "fullDraw" && r.metrics.anchor <= SHOT.anchorMax && settled) this.anchor(this.path[0].t, g);
         return [];
       }
 
       case "anchored": {
-        this.hold.push({ t, anchor: g.anchor, bowWrist: g.bowWrist, sw: g.sw, dir: g.dir });
-        // The release: the anchor hand jumps away within a few frames. A let-down moves slowly and is not a shot.
+        this.hold.push({ t, anchor: g.anchor, bowWrist: g.bowWrist, ear: g.ear, sw: g.sw, dir: g.dir });
+        // The release: the anchor hand jumps away from where it held within a few frames, and is still away on the
+        // next frame (a one-frame jump of the finger landmark at the face is not a release). A let-down is slow.
         const recent = this.hold.filter((h) => t - h.t <= SHOT.releaseWindowMs);
         const start = recent[0];
         const moved = Math.hypot(g.anchor.x - start.anchor.x, g.anchor.y - start.anchor.y) / g.sw;
-        if (moved >= SHOT.releaseJump && this.hold.length > recent.length) {
-          this.release = { t: start.t, anchor: start.anchor, bowWrist: start.bowWrist, sw: g.sw, dir: g.dir };
-          this.hold = this.hold.filter((h) => h.t <= start.t);
-          this.after = recent.slice(1).map((h) => ({ t: h.t, anchor: h.anchor, bowWrist: h.bowWrist, armOut: true }));
-          this.state = "follow";
+        if (this.candidate) {
+          const c = this.candidate;
+          const still = Math.hypot(g.anchor.x - c.start.anchor.x, g.anchor.y - c.start.anchor.y) / g.sw >= SHOT.releaseJump;
+          this.candidate = null;
+          if (still) {
+            this.release = { t: c.start.t, anchor: c.start.anchor, bowWrist: c.start.bowWrist, ear: c.start.ear, sw: g.sw, dir: g.dir };
+            this.after = this.hold.filter((h) => h.t > c.start.t).map((h) => ({ t: h.t, anchor: h.anchor, bowWrist: h.bowWrist, armOut: true }));
+            this.hold = this.hold.filter((h) => h.t <= c.start.t);
+            this.state = "follow";
+            return [];
+          }
+          // It came back: drop the glitch frame from the hold.
+          this.hold = this.hold.filter((h) => h.t !== c.t);
+        } else if (moved >= SHOT.releaseJump && this.hold.length > recent.length) {
+          this.candidate = { t, start };
           return [];
         }
         if (r.phase !== "fullDraw") {
@@ -137,16 +152,22 @@ export class ShotTracker {
     const along = (a) => ((a.anchor.x - this.release.anchor.x) * dir) / sw;   // + = toward the target
     const half = within(500);
     const handBack = Math.max(0, ...half.map((a) => -along(a)));
+    // How far behind the draw-side ear the hand got (+ = behind it, away from the target), when the ear is in view.
+    const ear = this.release.ear;
+    const behindEar = ear ? Math.max(...half.map((a) => ((ear.x - a.anchor.x) * dir) / sw)) : null;
     const handForward = Math.max(0, ...half.map((a) => along(a)));
     const bowDrop = Math.max(0, ...half.map((a) => (a.bowWrist.y - this.release.bowWrist.y) / sw));
     const downAt = this.after.find((a) => !a.armOut);
     const bowHeldMs = downAt ? downAt.t - this.release.t : SHOT.afterMs;
 
     const issues = [];
-    const add = (id, over) => { if (over > 0) issues.push({ id, severity: over, say: say[id] }); };
+    const cues = say(this.hand);
+    const add = (id, over) => { if (over > 0) issues.push({ id, severity: over, say: cues[id] }); };
     // The release first: it is what the shot just showed.
     add("forwardRelease", (handForward - SHOT.forwardMax) / 0.1 + 1);
-    if (handForward <= SHOT.forwardMax) add("deadRelease", (SHOT.deadBackMin - handBack) / 0.1 + 1);
+    if (handForward <= SHOT.forwardMax) {
+      add("deadRelease", behindEar !== null ? (behindEar < 0 ? -behindEar / 0.1 + 1 : 0) : (SHOT.deadBackMin - handBack) / 0.1 + 1);
+    }
     add("bowDrop", (bowDrop - SHOT.bowDropMax) / 0.15 + (bowDrop > SHOT.bowDropMax ? 1 : 0));
     if (bowDrop <= SHOT.bowDropMax) add("followShort", (SHOT.followHoldMs - bowHeldMs) / 500);
     add("creep", (creep - SHOT.creepMax) / 0.06);
@@ -157,7 +178,7 @@ export class ShotTracker {
     issues.sort((a, b) => b.severity - a.severity);
 
     return {
-      releaseT: this.release.t, holdMs, tremor, creep, handBack, handForward, bowDrop, bowHeldMs,
+      releaseT: this.release.t, holdMs, tremor, creep, handBack, behindEar, handForward, bowDrop, bowHeldMs,
       shoulderRise: this.shoulderRise, elbowDrop: this.elbowDrop, issues,
     };
   }
