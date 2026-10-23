@@ -19,6 +19,7 @@ export const LIMITS = {
   anchorLowMax: 0.2,       // index finger below the mouth corner
   torsoLeanMax: 8,         // hips → shoulders vs vertical
   stanceMin: 0.8, stanceMax: 1.7, // ankle gap
+  balanceMax: 0.12,        // body's centre (between hips and shoulders) off the plumb line through the middle of the feet
 };
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -86,13 +87,29 @@ export function analyze(points, { hand = "right" } = {}) {
     metrics.torsoLean = deg(Math.atan2(Math.abs(sm.x - hm.x), Math.abs(hm.y - sm.y) || 1));
   }
   const ankles = [points[LM.leftAnkle], points[LM.rightAnkle]];
-  if (ankles.every((a) => a && (a.v ?? 1) >= 0.5)) metrics.stance = Math.abs(ankles[0].x - ankles[1].x) / sw;
+  const dir = Math.sign(bowWrist.x - bowShoulder.x) || 1;   // +1 when the target is to the right in the image
+  let plumbX;
+  if (ankles.every((a) => a && (a.v ?? 1) >= 0.5)) {
+    metrics.stance = Math.abs(ankles[0].x - ankles[1].x) / sw;
+    plumbX = (ankles[0].x + ankles[1].x) / 2;
+    // Where the weight sits: the middle of hips and shoulders against a vertical line between the feet.
+    // Positive = toward the target, i.e. onto the front foot.
+    if (hips.every((h) => h && (h.v ?? 1) >= 0.5)) {
+      const centreX = (hips[0].x + hips[1].x + points[LM.leftShoulder].x + points[LM.rightShoulder].x) / 4;
+      metrics.balance = ((centreX - plumbX) * dir) / sw;
+    }
+  }
 
   // Bow arm raised toward the target: straight-ish, away from the body and near horizontal (a hanging arm is straight too).
   const armOut = metrics.bowElbow > 140 && dist(bowShoulder, bowWrist) > 1.2 * sw && metrics.bowArmTilt < 35;
   const atFace = metrics.anchor < 0.9;
   const phase = armOut && atFace ? "fullDraw" : "other";
-  if (phase !== "fullDraw") return { phase, metrics, issues: [] };
+  // Positions the shot tracker follows from frame to frame. `dir` is +1 when the target is to the right in the image.
+  const geom = {
+    sw, armOut, dir, plumbX,
+    anchor: { x: anchorPoint.x, y: anchorPoint.y }, bowWrist: { x: bowWrist.x, y: bowWrist.y }, bowShoulder: { x: bowShoulder.x, y: bowShoulder.y },
+  };
+  if (phase !== "fullDraw") return { phase, metrics, issues: [], geom };
 
   const issues = [];
   const add = (id, over, say) => { if (over > 0) issues.push({ id, severity: over, say }); };
@@ -105,12 +122,16 @@ export function analyze(points, { hand = "right" } = {}) {
   if (metrics.anchorDrop > LIMITS.anchorLowMax) add("anchorLow", (metrics.anchorDrop - LIMITS.anchorLowMax) / 0.15, "Đưa tay neo lên khoé miệng");
   else add("anchorFar", (metrics.anchor - LIMITS.anchorMax) / 0.2, "Kéo dây về khoé miệng");
   if (metrics.torsoLean !== undefined) add("torsoLean", (metrics.torsoLean - LIMITS.torsoLeanMax) / 6, "Đứng thẳng người");
+  if (metrics.balance !== undefined) {
+    add("balanceFront", (metrics.balance - LIMITS.balanceMax) / 0.1, "Đừng dồn người lên chân trước");
+    add("balanceBack", (-metrics.balance - LIMITS.balanceMax) / 0.1, "Đừng ngả người về chân sau");
+  }
   if (metrics.stance !== undefined) {
     add("stanceNarrow", (LIMITS.stanceMin - metrics.stance) / 0.3, "Mở hai chân rộng bằng vai");
     add("stanceWide", (metrics.stance - LIMITS.stanceMax) / 0.3, "Khép hai chân lại bằng vai");
   }
   issues.sort((a, b) => b.severity - a.severity);
-  return { phase, metrics, issues };
+  return { phase, metrics, issues, geom };
 }
 
 /**

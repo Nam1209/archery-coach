@@ -99,3 +99,20 @@ test("equipment hint from arm span", () => {
 test("joint angle", () => {
   assert.ok(Math.abs(jointAngle({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }) - 90) < 1e-9);
 });
+
+test("weight shifted onto the front foot is caught against the plumb line between the feet", () => {
+  // The target is to the right of the image, so the front foot is the right-hand ankle (x 580).
+  const p = goodFullDraw();
+  for (const i of [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip]) p[i] = { ...p[i], x: p[i].x + 25 };
+  const r = analyze(p);
+  assert.ok(r.metrics.balance > 0.15, `balance ${r.metrics.balance}`);
+  assert.ok(r.issues.some((i) => i.id === "balanceFront" && i.say === "Đừng dồn người lên chân trước"));
+  assert.equal(analyze(goodFullDraw()).metrics.balance, 0);
+  assert.equal(analyze(goodFullDraw()).geom.plumbX, 500);
+});
+
+test("weight shifted onto the back foot has its own cue", () => {
+  const p = goodFullDraw();
+  for (const i of [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip]) p[i] = { ...p[i], x: p[i].x - 25 };
+  assert.ok(analyze(p).issues.some((i) => i.id === "balanceBack" && i.say === "Đừng ngả người về chân sau"));
+});

@@ -31,7 +31,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 #cue { position: fixed; left: 50%; top: max(64px, calc(env(safe-area-inset-top) + 56px)); transform: translateX(-50%); max-width: calc(100% - 32px);
   background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 16px; padding: 10px 18px; font-size: 24px; font-weight: 700; text-align: center; text-wrap: balance; }
 #cue.bad { color: var(--bad); } #cue.good { color: var(--good); }
-.metrics { display: grid; grid-template-columns: repeat(4, auto); gap: 2px 14px; background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 14px; padding: 8px 12px; font-size: 12px; color: var(--sec); }
+.metrics { display: grid; grid-template-columns: repeat(5, auto); gap: 2px 14px; background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 14px; padding: 8px 12px; font-size: 12px; color: var(--sec); }
 .metrics b { display: block; font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
 .metrics b.off { color: var(--warn); }
 .controls { display: flex; gap: 8px; pointer-events: auto; }
@@ -56,6 +56,13 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 /* Session log */
 #log { position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 64px); width: min(300px, calc(100% - 28px)); background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 14px; padding: 12px; font-size: 14px; display: grid; gap: 6px; }
 #log .r { display: flex; justify-content: space-between; gap: 8px; }
+#log .last { color: var(--sec); font-size: 13px; }
+
+/* Slow replay around the release */
+#replay { position: fixed; inset: 0; background: #000; z-index: 5; }
+#replay[hidden], [hidden] { display: none !important; }
+#replayCanvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+#replayRelease { background: var(--accent); color: #1b1a14; }
 </style>
 </head>
 <body>
@@ -76,14 +83,28 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
     <span>Vai lệch<b id="mShoulder">–</b></span>
     <span>Khuỷu kéo<b id="mElbow">–</b></span>
     <span>Điểm neo<b id="mAnchor">–</b></span>
+    <span>Trọng tâm<b id="mBalance">–</b></span>
   </div>
   <div class="controls">
+    <button class="btn" id="replayBtn" hidden>Xem lại</button>
     <button class="btn" id="logBtn">Tổng kết</button>
     <button class="btn" id="voiceBtn">Giọng: bật</button>
     <button class="btn" id="setupBtn">Cài đặt</button>
   </div>
 </div>
 <div id="log" hidden></div>
+
+<section id="replay" hidden aria-label="Xem lại phát vừa rồi">
+  <canvas id="replayCanvas"></canvas>
+  <div class="hud top">
+    <span class="pill" id="replayLabel">Xem lại chậm 4 lần</span>
+    <span class="pill" id="replayRelease" hidden>Nhả dây</span>
+  </div>
+  <div class="hud bottom">
+    <span class="pill" id="replayStats"></span>
+    <div class="controls"><button class="btn primary" id="replayClose">Đóng</button></div>
+  </div>
+</section>
 
 <section id="sheet">
   <div class="wrap">
