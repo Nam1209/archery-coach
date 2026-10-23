@@ -10,7 +10,7 @@ function loadProfile() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) ?? {}; } catch { return {}; }
 }
 function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {} }
-let profile = { height: 170, span: 170, hand: "right", voice: true, ...loadProfile() };
+let profile = { height: 177, span: 177, hand: "right", voice: true, ...loadProfile() };
 $("height").value = profile.height; $("span").value = profile.span; $("hand").value = profile.hand;
 
 function showEquipment() {
